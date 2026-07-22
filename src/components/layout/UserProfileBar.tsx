@@ -1,24 +1,12 @@
 import { useProfileQuery } from "@/components/profile/use-profile-query";
 import { VoicePanel } from "@/components/voice/voice-panel";
 import { Settings } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useState } from "react";
+import { UserSettingsModal } from "@/components/settings/user-settings-modal";
 
 const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statusMessage: string }) => {
   const { data: profile } = useProfileQuery();
-  const { logout } = useAuth();
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div>
@@ -43,33 +31,15 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
           </div>
         </div>
 
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setShowMenu((v) => !v)}
-            className="p-1.5 rounded text-[#96989d] hover:text-white hover:bg-[#35373c] transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-
-          {showMenu && (
-            <div className="absolute bottom-10 right-0 w-52 bg-[#111214] rounded-lg shadow-xl border border-[#1e1f22] py-1.5 z-50">
-              <div className="px-3 py-2 border-b border-[#1e1f22] mb-1">
-                <p className="text-xs font-semibold text-white">{profile?.nickname ?? "..."}</p>
-                <p className="text-xs text-[#96989d]">{statusMessage}</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  logout();
-                }}
-                className="w-full text-left px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 rounded-sm transition-colors"
-              >
-                로그아웃
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="p-1.5 rounded text-[#96989d] hover:text-white hover:bg-[#35373c] transition-colors"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
+
+      <UserSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 };
