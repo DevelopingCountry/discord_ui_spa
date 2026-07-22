@@ -8,6 +8,7 @@ export interface VoiceParticipant {
   audioMuted: boolean;
   videoEnabled: boolean;
   screenSharing: boolean;
+  speaking: boolean;
 }
 
 interface VoiceStoreState {
@@ -20,6 +21,7 @@ interface VoiceStoreState {
   cameraOn: boolean;
   screenSharing: boolean;
   localStream: MediaStream | null;
+  localSpeaking: boolean;
   participants: Record<string, VoiceParticipant>;
 
   setStatus: (status: VoiceConnectionStatus) => void;
@@ -29,9 +31,11 @@ interface VoiceStoreState {
   setLocalCamera: (on: boolean) => void;
   setLocalScreenShare: (on: boolean) => void;
   setLocalStream: (stream: MediaStream | null) => void;
+  setLocalSpeaking: (speaking: boolean) => void;
   upsertParticipant: (userId: string) => void;
   removeParticipant: (userId: string) => void;
   setParticipantStream: (userId: string, stream: MediaStream | null) => void;
+  setParticipantSpeaking: (userId: string, speaking: boolean) => void;
   setParticipantMediaState: (
     userId: string,
     patch: Partial<Pick<VoiceParticipant, "audioMuted" | "videoEnabled" | "screenSharing" | "nickname">>,
@@ -49,6 +53,7 @@ const initialState = {
   cameraOn: false,
   screenSharing: false,
   localStream: null,
+  localSpeaking: false,
   participants: {},
 };
 
@@ -67,6 +72,8 @@ export const useVoiceStore = create<VoiceStoreState>((set) => ({
   setLocalCamera: (on) => set({ cameraOn: on }),
   setLocalScreenShare: (on) => set({ screenSharing: on }),
   setLocalStream: (stream) => set({ localStream: stream }),
+  setLocalSpeaking: (speaking) =>
+    set((state) => (state.localSpeaking === speaking ? state : { localSpeaking: speaking })),
 
   upsertParticipant: (userId) =>
     set((state) => {
@@ -81,6 +88,7 @@ export const useVoiceStore = create<VoiceStoreState>((set) => ({
             audioMuted: false,
             videoEnabled: false,
             screenSharing: false,
+            speaking: false,
           },
         },
       };
@@ -96,6 +104,12 @@ export const useVoiceStore = create<VoiceStoreState>((set) => ({
       const existing = state.participants[userId];
       if (!existing) return state;
       return { participants: { ...state.participants, [userId]: { ...existing, stream } } };
+    }),
+  setParticipantSpeaking: (userId, speaking) =>
+    set((state) => {
+      const existing = state.participants[userId];
+      if (!existing || existing.speaking === speaking) return state;
+      return { participants: { ...state.participants, [userId]: { ...existing, speaking } } };
     }),
   setParticipantMediaState: (userId, patch) =>
     set((state) => {

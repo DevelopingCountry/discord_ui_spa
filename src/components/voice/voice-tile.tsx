@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { MicOff } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
 interface VoiceTileProps {
   displayLabel: string;
@@ -8,9 +9,10 @@ interface VoiceTileProps {
   videoEnabled: boolean;
   audioMuted: boolean;
   isLocal: boolean;
+  speaking: boolean;
 }
 
-export function VoiceTile({ displayLabel, stream, videoEnabled, audioMuted, isLocal }: VoiceTileProps) {
+export function VoiceTile({ displayLabel, stream, videoEnabled, audioMuted, isLocal, speaking }: VoiceTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hasVideo = videoEnabled && !!stream && stream.getVideoTracks().length > 0;
 
@@ -19,7 +21,12 @@ export function VoiceTile({ displayLabel, stream, videoEnabled, audioMuted, isLo
   }, [stream, hasVideo]);
 
   return (
-    <div className="relative flex aspect-video items-center justify-center rounded-lg bg-[#1e1f22] overflow-hidden">
+    <div
+      className={cn(
+        "relative flex aspect-video items-center justify-center rounded-lg bg-[#1e1f22] overflow-hidden ring-inset ring-2 ring-transparent transition-colors",
+        speaking && !audioMuted && "ring-green-500",
+      )}
+    >
       {hasVideo ? (
         // 원격 오디오는 voice-connection.ts가 소유한 숨김 <audio>로만 재생됨 — 에코 방지를 위해 항상 muted
         <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />

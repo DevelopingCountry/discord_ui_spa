@@ -3,6 +3,8 @@ import { useVoiceStore } from "@/components/voice/use-voice-store";
 import type { VoiceSignal } from "@/components/voice/voice-types";
 
 const ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+const SPEAKING_THRESHOLD = 12; // getByteFrequencyData 평균값 기준(0~255), 경험적으로 조정한 값
+const SPEAKING_HANGOVER_MS = 300; // 말 사이 짧은 침묵에 테두리가 깜빡이지 않도록 유지하는 시간
 
 const peers = new Map<string, RTCPeerConnection>();
 const makingOffer = new Map<string, boolean>();
@@ -11,6 +13,7 @@ const pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
 const audioEls = new Map<string, HTMLAudioElement>();
 const videoSenders = new Map<string, RTCRtpSender>();
 const remoteStreams = new Map<string, MediaStream>();
+const speakingDetectors = new Map<string, () => void>();
 
 let unsubscribeSignal: (() => void) | null = null;
 let myUserId: string | null = null;
@@ -20,6 +23,51 @@ let currentChannelId: string | null = null;
 let localAudioTrack: MediaStreamTrack | null = null;
 let localVideoTrack: MediaStreamTrack | null = null;
 let micMutedBeforeDeafen = false;
+let stopLocalSpeakingDetector: (() => void) | null = null;
+
+function attachSpeakingDetector(stream: MediaStream, onChange: (speaking: boolean) => void): () => void {
+  if (stream.getAudioTracks().length === 0) return () => {};
+
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(stream);
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser); // destination에는 연결하지 않음 — 재생이 아니라 분석 전용
+
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  let speaking = false;
+  let silenceStartedAt = 0;
+  let rafId = 0;
+
+  const tick = () => {
+    analyser.getByteFrequencyData(data);
+    const average = data.reduce((sum, v) => sum + v, 0) / data.length;
+
+    if (average > SPEAKING_THRESHOLD) {
+      silenceStartedAt = 0;
+      if (!speaking) {
+        speaking = true;
+        onChange(true);
+      }
+    } else if (speaking) {
+      if (silenceStartedAt === 0) {
+        silenceStartedAt = performance.now();
+      } else if (performance.now() - silenceStartedAt > SPEAKING_HANGOVER_MS) {
+        speaking = false;
+        onChange(false);
+      }
+    }
+
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+
+  return () => {
+    cancelAnimationFrame(rafId);
+    source.disconnect();
+    void audioContext.close();
+  };
+}
 
 function isPolite(peerId: string): boolean {
   return myUserId! < peerId;
@@ -109,7 +157,15 @@ function getOrCreatePeer(peerId: string): RTCPeerConnection {
     const remoteStream = remoteStreams.get(peerId);
     if (!remoteStream) return;
     remoteStream.addTrack(event.track);
-    if (event.track.kind === "audio") attachRemoteAudio(peerId, remoteStream);
+    if (event.track.kind === "audio") {
+      attachRemoteAudio(peerId, remoteStream);
+      speakingDetectors.set(
+        peerId,
+        attachSpeakingDetector(remoteStream, (speaking) =>
+          useVoiceStore.getState().setParticipantSpeaking(peerId, speaking),
+        ),
+      );
+    }
     useVoiceStore.getState().setParticipantStream(peerId, remoteStream);
 
     event.track.onended = () => {
@@ -136,6 +192,8 @@ function closePeer(peerId: string) {
   pendingCandidates.delete(peerId);
   videoSenders.delete(peerId);
   remoteStreams.delete(peerId);
+  speakingDetectors.get(peerId)?.();
+  speakingDetectors.delete(peerId);
   detachRemoteAudio(peerId);
 }
 
@@ -249,6 +307,9 @@ export async function joinVoiceChannel(params: {
   try {
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     localAudioTrack = micStream.getAudioTracks()[0] ?? null;
+    stopLocalSpeakingDetector = attachSpeakingDetector(micStream, (speaking) =>
+      useVoiceStore.getState().setLocalSpeaking(speaking),
+    );
 
     await connectVoiceSocket(params.accessToken);
     unsubscribeSignal = onVoiceSignal(handleSignal);
@@ -275,6 +336,9 @@ export function leaveVoiceChannel(): void {
 
   peers.forEach((_pc, peerId) => closePeer(peerId));
   peers.clear();
+
+  stopLocalSpeakingDetector?.();
+  stopLocalSpeakingDetector = null;
 
   localAudioTrack?.stop();
   localAudioTrack = null;

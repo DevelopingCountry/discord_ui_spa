@@ -32,6 +32,7 @@ export function VoiceChannelPage({
   const cameraOn = useVoiceStore((s) => s.cameraOn);
   const screenSharing = useVoiceStore((s) => s.screenSharing);
   const localStream = useVoiceStore((s) => s.localStream);
+  const localSpeaking = useVoiceStore((s) => s.localSpeaking);
   const participants = useVoiceStore((s) => s.participants);
 
   const isThisChannel = activeChannelId === channelId;
@@ -85,6 +86,7 @@ export function VoiceChannelPage({
           stream={localStream}
           videoEnabled={cameraOn || screenSharing}
           audioMuted={micMuted}
+          speaking={localSpeaking}
           isLocal
         />
         {participantList.map((p) => (
@@ -94,6 +96,7 @@ export function VoiceChannelPage({
             stream={p.stream}
             videoEnabled={p.videoEnabled || p.screenSharing}
             audioMuted={p.audioMuted}
+            speaking={p.speaking}
             isLocal={false}
           />
         ))}
