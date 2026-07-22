@@ -1,9 +1,9 @@
 import type React from "react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Camera, Plus, X } from "lucide-react";
+import { Camera, Plus } from "lucide-react";
 import { useState } from "react";
 import { useUpdateServerInfo } from "@/components/server/use-update-server-info";
 
@@ -38,7 +38,7 @@ export const UpdateServerModal = ({ isOpen, onClose, onBack, currentServerName, 
           onClose(); // 모달 닫기
         },
         onError: (err) => {
-          console.error("서버 생성 실패:", err);
+          console.error("서버 정보 수정 실패:", err);
         },
       },
     );
@@ -47,20 +47,7 @@ export const UpdateServerModal = ({ isOpen, onClose, onBack, currentServerName, 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-[#313338] text-white border-none max-w-md p-0 overflow-hidden">
-        <DialogHeader className="p-0">
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-4 top-4 text-gray-400 hover:text-white hover:bg-transparent z-10"
-              onClick={onClose}
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-        </DialogHeader>
-
-        <div className="px-4 pt-4 pb-6 text-center">
+        <div className="px-4 pt-8 pb-6 text-center">
           <DialogTitle className="text-2xl font-bold mb-2">서버 정보 변경</DialogTitle>
           <DialogDescription className="text-[#B5BAC1] text-center mb-6">정보변경하세요</DialogDescription>
 

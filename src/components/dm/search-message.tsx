@@ -6,7 +6,6 @@ export default function SearchMessage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); // 🔒 기본 제출 방지 (새로고침 X)
-    // onSearch(input); // 🔍 검색 실행
   };
   return (
     <form onSubmit={handleSubmit} className="relative">

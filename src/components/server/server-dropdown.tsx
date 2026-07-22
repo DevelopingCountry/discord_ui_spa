@@ -1,38 +1,21 @@
-import React, { useState } from "react";
+import React from "react";
 import { Bell, Cog, Gift, UserPlus, X } from "lucide-react";
 import { useRef, useEffect } from "react";
-import { UpdateServerModal } from "@/components/server/modal/update-server-modal";
-import ServerAlarmModal from "@/components/server/modal/server-alarm-modal";
-import type { server } from "@/components/type/response";
-import { LeaveServerModal } from "@/components/server/modal/leave-server-modal";
-import { ServerInviteModal } from "@/components/server/modal/server-invite-modal";
+
+export type ServerModalType = "invite" | "update" | "alarm" | "leave";
 
 interface ServerDropdownProps {
-  serverId: string;
   isOpen: boolean;
   onClose: () => void;
   serverName: string;
-  currentServer?: server;
-  onInviteClick: () => void;
+  onSelectModal: (modal: ServerModalType) => void;
 }
 
-export default function ServerDropdown({
-  isOpen,
-  onClose,
-  serverName,
-  serverId,
-  currentServer,
-  onInviteClick,
-}: ServerDropdownProps) {
-  const [isUpdateSeverInfoModalOpen, setIsUpdateSeverInfoModalOpen] = useState(false);
-  const [isSeverAlarmModalOpen, setIsSeverAlarmModalOpen] = useState(false);
-  const [isLeaveServerModalOpen, setIsLeaveServerModalOpen] = useState(false);
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+export default function ServerDropdown({ isOpen, onClose, serverName, onSelectModal }: ServerDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (isUpdateSeverInfoModalOpen || isSeverAlarmModalOpen) return;
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         onClose();
       }
@@ -43,9 +26,14 @@ export default function ServerDropdown({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isOpen, onClose, isUpdateSeverInfoModalOpen, isSeverAlarmModalOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const selectModal = (modal: ServerModalType) => {
+    onClose();
+    onSelectModal(modal);
+  };
 
   return (
     <div className="absolute top-12 left-0 w-60 bg-[#1e1f22] rounded-md shadow-lg z-50 text-white" ref={dropdownRef}>
@@ -56,70 +44,21 @@ export default function ServerDropdown({
       </div>
 
       <div className="border-t border-[#35373c] py-1">
-        <DropdownItem
-          icon={<UserPlus className="w-4 h-4" />}
-          label="초대하기"
-          onClick={() => {
-            onClose();
-            onInviteClick();
-          }}
-        />
-        <DropdownItem
-          icon={<Cog className="w-4 h-4" />}
-          label="서버 설정"
-          onClick={() => setIsUpdateSeverInfoModalOpen(true)}
-        />
+        <DropdownItem icon={<UserPlus className="w-4 h-4" />} label="초대하기" onClick={() => selectModal("invite")} />
+        <DropdownItem icon={<Cog className="w-4 h-4" />} label="서버 설정" onClick={() => selectModal("update")} />
       </div>
 
       <div className="border-t border-[#35373c] py-1">
-        <DropdownItem
-          icon={<Bell className="w-4 h-4" />}
-          label="알림 설정"
-          onClick={() => setIsSeverAlarmModalOpen(true)}
-        />
+        <DropdownItem icon={<Bell className="w-4 h-4" />} label="알림 설정" onClick={() => selectModal("alarm")} />
       </div>
 
       <div className="border-t border-[#35373c] py-1">
         <DropdownItem
           icon={<X className="w-4 h-4" color={"#FF0E3C"} />}
           label="서버 나가기"
-          onClick={() => setIsLeaveServerModalOpen(true)}
+          onClick={() => selectModal("leave")}
         />
       </div>
-
-      <ServerInviteModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        serverId={serverId}
-        serverName={serverName}
-      />
-      <LeaveServerModal
-        isOpen={isLeaveServerModalOpen}
-        onClose={() => setIsLeaveServerModalOpen(false)}
-        onBack={() => setIsLeaveServerModalOpen(false)}
-        serverName={serverName}
-        serverId={serverId}
-      />
-      <UpdateServerModal
-        serverId={serverId}
-        isOpen={isUpdateSeverInfoModalOpen}
-        onClose={() => {
-          setIsUpdateSeverInfoModalOpen(false);
-          onClose();
-        }}
-        currentServerName={serverName}
-        onBack={() => setIsUpdateSeverInfoModalOpen(false)}
-      />
-      <ServerAlarmModal
-        currentServer={currentServer}
-        currentServerName={serverName}
-        isOpen={isSeverAlarmModalOpen}
-        onClose={() => {
-          setIsSeverAlarmModalOpen(false);
-          onClose();
-        }}
-        onBack={() => setIsSeverAlarmModalOpen(false)}
-      />
     </div>
   );
 }

@@ -19,7 +19,6 @@ export default function ChannelSidebar({ serverId }: { serverId: string }) {
     setCreateChannelType(type);
     setIsCreateChannelModalOpen(true);
   };
-  console.log("channel-sidebar");
   return (
     <div className="flex flex-col w-full bg-[#2b2d31]">
       <div className="flex-1 overflow-y-auto p-2">

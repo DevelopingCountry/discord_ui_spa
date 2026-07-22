@@ -18,8 +18,6 @@ export const useDeleteChannel = () => {
         body: JSON.stringify({ channelId: channelId }),
       });
 
-      console.log("채널 삭제 요청:", `${API_URL}/server/${serverId}/channel`);
-
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
         throw new Error(errorData?.message || "채널 삭제 실패");

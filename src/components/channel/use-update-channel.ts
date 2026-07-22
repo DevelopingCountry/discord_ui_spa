@@ -26,8 +26,6 @@ export const useUpdateChannel = () => {
         body: JSON.stringify({ channelId: channelId, channelName: channelname }),
       });
 
-      console.log("채널 업데이트 요청:", `${API_URL}/server/${serverId}/channel`);
-
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
         throw new Error(errorData?.message || "채널 업데이트 실패");

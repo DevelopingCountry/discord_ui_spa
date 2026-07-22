@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuth } from "@/components/auth/AuthContext";
-import { useFriendsQuery } from "@/components/friend/use-friends-query";
+import { useServerInvitesQuery } from "@/components/server/use-server-invites-query";
+import { useInviteFriend } from "@/components/server/use-invite-friend";
 import { Search } from "lucide-react";
-import { API_URL } from "@/lib/config";
 
 interface ServerInviteModalProps {
   isOpen: boolean;
@@ -13,33 +12,18 @@ interface ServerInviteModalProps {
 }
 
 export function ServerInviteModal({ isOpen, onClose, serverId, serverName }: ServerInviteModalProps) {
-  const { accessToken } = useAuth();
-  const { data: allFriends = [] } = useFriendsQuery();
-  const friends = allFriends.filter((f) => f.status === "ACCEPTED");
+  const { data: friends = [] } = useServerInvitesQuery(serverId, isOpen);
   const [search, setSearch] = useState("");
-  const [invited, setInvited] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-
-  const handleInvite = async (friendId: string) => {
-    if (invited.has(friendId) || loading) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/server/${serverId}/invite`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ guestId: friendId }),
-      });
-      if (res.ok) {
-        setInvited((prev) => new Set(prev).add(friendId));
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const inviteFriend = useInviteFriend(serverId);
+  console.log("초대가능 친구 리스트를 불러옵니다");
+  const handleInvite = (friendId: string) => {
+    if (pendingId) return;
+    setPendingId(friendId);
+    inviteFriend.mutate(friendId, {
+      onError: (err) => console.error("❌ 초대 실패:", err),
+      onSettled: () => setPendingId(null),
+    });
   };
 
   const filtered = friends.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()));
@@ -88,14 +72,14 @@ export function ServerInviteModal({ isOpen, onClose, serverId, serverName }: Ser
                 <span className="flex-1 text-sm font-medium">{friend.name}</span>
                 <button
                   onClick={() => handleInvite(friend.friendId)}
-                  disabled={invited.has(friend.friendId)}
+                  disabled={friend.invited || pendingId === friend.friendId}
                   className={`text-sm px-3 py-1 rounded font-medium transition-colors ${
-                    invited.has(friend.friendId)
+                    friend.invited
                       ? "bg-[#3ba55c]/20 text-[#3ba55c] cursor-default"
-                      : "bg-[#5865f2] hover:bg-[#4752c4] text-white"
+                      : "bg-[#5865f2] hover:bg-[#4752c4] text-white disabled:opacity-60"
                   }`}
                 >
-                  {invited.has(friend.friendId) ? "초대됨" : "초대하기"}
+                  {friend.invited ? "초대됨" : pendingId === friend.friendId ? "초대 중..." : "초대하기"}
                 </button>
               </div>
             ))

@@ -9,6 +9,7 @@ import {
 } from "@/components/notification/use-notification-inbox-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { friendsQueryKey } from "@/components/friend/use-friends-query";
+import { serverInvitesQueryKey } from "@/components/server/use-server-invites-query";
 
 type NotificationPayload = {
   fromNickname: string;
@@ -19,6 +20,7 @@ type NotificationPayload = {
   serverImage?: string;
   serverName?: string;
   serverUrl?: string;
+  serverId?: string;
 };
 
 export default function NotificationSubscribe() {
@@ -62,6 +64,19 @@ export default function NotificationSubscribe() {
         break;
       case "FRIEND_OFFLINE":
         removeOnlineFriend((payload as unknown as { friendId: string }).friendId);
+        break;
+      case "FRIEND_ACCEPTED":
+      case "FRIEND_REJECTED":
+        queryClient.invalidateQueries({ queryKey: friendsQueryKey });
+        break;
+      case "FRIEND_DELETED":
+        removeOnlineFriend((payload as unknown as { friendId: string }).friendId);
+        queryClient.invalidateQueries({ queryKey: friendsQueryKey });
+        break;
+      case "SERVER_INVITE_ACCEPTED":
+        if (payload.serverId) {
+          queryClient.invalidateQueries({ queryKey: serverInvitesQueryKey(payload.serverId) });
+        }
         break;
       default:
     }

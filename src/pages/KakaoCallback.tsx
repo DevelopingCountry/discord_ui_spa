@@ -19,7 +19,6 @@ export default function KakaoRedirectPage() {
         const { accessToken, userId } = data.response;
         login(accessToken);
         settingUserId(userId);
-        document.cookie = `accessToken=${accessToken}; path=/;`;
         localStorage.setItem("accessToken", accessToken);
         window.location.href = "/channels/me";
       })
