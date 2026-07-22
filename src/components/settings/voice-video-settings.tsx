@@ -1,21 +1,27 @@
 import { useEffect, useState } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import { useVoiceSettingsStore, type InputProfile } from "@/components/voice/use-voice-settings-store";
 
 
 const INPUT_PROFILES: { value: InputProfile; title: string; desc: string }[] = [
+  { value: "isolation", title: "음성 격리", desc: "멋진 목소리만 들려 드릴게요. 소음은 Discord가 알아서 처리할게요" },
+  { value: "studio", title: "스튜디오", desc: "순수 오디오: 프로세싱 없이 마이크 열기" },
   { value: "custom", title: "사용자 지정", desc: "고급 모드: 모든 버튼과 다이얼을 주세요!" },
 ];
 
-function LevelMeter({ level }: { level: number }) {
-  const barCount = 32;
-  const filled = Math.round(Math.min(1, level) * barCount);
+const METER_BAR_COUNT = 32;
+
+function LevelMeter({ level, activeColor = "#f0b232" }: { level: number; activeColor?: string }) {
+  const filled = Math.round(Math.min(1, Math.max(0, level)) * METER_BAR_COUNT);
   return (
     <div className="flex items-center gap-0.5 h-6 w-full">
-      {Array.from({ length: barCount }).map((_, i) => (
-        <div key={i} className={cn("flex-1 h-full rounded-[1px]", i < filled ? "bg-[#5865f2]" : "bg-[#1e1f22]")} />
+      {Array.from({ length: METER_BAR_COUNT }).map((_, i) => (
+        <div
+          key={i}
+          className="flex-1 h-full rounded-[1px] transition-colors"
+          style={{ backgroundColor: i < filled ? activeColor : "#4e5058" }}
+        />
       ))}
     </div>
   );
@@ -40,8 +46,8 @@ export function VoiceVideoSettings() {
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [micTestOn, setMicTestOn] = useState(false);
+  const [micTestLevel, setMicTestLevel] = useState(0);
 
-  // 장치 "목록"만 조회(마이크 접근 권한 없이도 가능) — 실제 캡처/분석은 하지 않는다.
   useEffect(() => {
     let cancelled = false;
     const loadDevices = async () => {
@@ -57,6 +63,55 @@ export function VoiceVideoSettings() {
       navigator.mediaDevices.removeEventListener("devicechange", loadDevices);
     };
   }, []);
+
+  useEffect(() => {
+    if (!micTestOn) {
+      setMicTestLevel(0);
+      return;
+    }
+
+    let cancelled = false;
+    let stream: MediaStream | null = null;
+    let audioContext: AudioContext | null = null;
+    let rafId = 0;
+
+    void (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: inputDeviceId ? { deviceId: { exact: inputDeviceId } } : true,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const tick = () => {
+          analyser.getByteFrequencyData(data);
+          const average = data.reduce((sum, v) => sum + v, 0) / data.length;
+          setMicTestLevel(average / 255);
+          rafId = requestAnimationFrame(tick);
+        };
+        tick();
+      } catch (e) {
+        console.error("마이크 테스트 실패", e);
+        setMicTestOn(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      stream?.getTracks().forEach((t) => t.stop());
+      void audioContext?.close();
+    };
+  }, [micTestOn, inputDeviceId]);
 
   return (
     <div className="text-white">
@@ -124,13 +179,21 @@ export function VoiceVideoSettings() {
         <button
           type="button"
           onClick={() => setMicTestOn((v) => !v)}
-          className="px-4 py-2 rounded text-sm font-medium bg-[#4e5058] hover:bg-[#6d6f78] text-white transition-colors shrink-0"
+          className={
+            micTestOn
+              ? "px-4 py-2 rounded text-sm font-medium bg-[#5865f2] hover:bg-[#4752c4] text-white transition-colors shrink-0"
+              : "px-4 py-2 rounded text-sm font-medium bg-[#4e5058] hover:bg-[#6d6f78] text-white transition-colors shrink-0"
+          }
         >
-          {micTestOn ? "테스트 중지" : "마이크 테스트"}
+          {micTestOn ? "테스트 정지하기" : "마이크 테스트"}
         </button>
-        <LevelMeter level={micTestOn ? 0.35 : 0} />
+        <LevelMeter level={micTestLevel} />
       </div>
-      <p className="text-sm text-[#96989d] mb-6">도움이 필요하신가요? 문제 해결 가이드를 확인하세요.</p>
+      {micTestOn ? (
+        <p className="text-sm text-[#96989d] mb-6">멋진 목소리를 재생하고 있어요</p>
+      ) : (
+        <p className="text-sm text-[#96989d] mb-6">도움이 필요하신가요? 문제 해결 가이드를 확인하세요.</p>
+      )}
 
       <div className="h-px bg-[#3f4147] mb-6" />
 
