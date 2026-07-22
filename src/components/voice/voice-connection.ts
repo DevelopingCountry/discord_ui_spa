@@ -1,5 +1,6 @@
 import { connectVoiceSocket, disconnectVoiceSocket, onVoiceSignal, sendVoiceSignal } from "@/components/voice/voice-signaling";
 import { useVoiceStore } from "@/components/voice/use-voice-store";
+import { useVoiceSettingsStore } from "@/components/voice/use-voice-settings-store";
 import type { VoiceSignal } from "@/components/voice/voice-types";
 
 const ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -24,6 +25,46 @@ let localAudioTrack: MediaStreamTrack | null = null;
 let localVideoTrack: MediaStreamTrack | null = null;
 let micMutedBeforeDeafen = false;
 let stopLocalSpeakingDetector: (() => void) | null = null;
+
+// 마이크 음량 슬라이더용 오디오 그래프: 실제 마이크 캡처 → GainNode → 가상 목적지
+// (그 결과 트랙을 피어에 전송 + 발화감지에도 사용)
+let micAudioContext: AudioContext | null = null;
+let micGainNode: GainNode | null = null;
+let rawMicStream: MediaStream | null = null;
+
+async function acquireMicTrack(): Promise<MediaStreamTrack> {
+  rawMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  micAudioContext = new AudioContext();
+  const source = micAudioContext.createMediaStreamSource(rawMicStream);
+  micGainNode = micAudioContext.createGain();
+  micGainNode.gain.value = useVoiceSettingsStore.getState().micVolume / 100;
+  const destination = micAudioContext.createMediaStreamDestination();
+  source.connect(micGainNode).connect(destination);
+
+  return destination.stream.getAudioTracks()[0];
+}
+
+function teardownMicPipeline() {
+  rawMicStream?.getTracks().forEach((t) => t.stop());
+  rawMicStream = null;
+  micGainNode?.disconnect();
+  micGainNode = null;
+  void micAudioContext?.close();
+  micAudioContext = null;
+}
+
+export function setMicGainLevel(percent: number): void {
+  useVoiceSettingsStore.getState().setMicVolume(percent);
+  if (micGainNode) micGainNode.gain.value = percent / 100;
+}
+
+export function setSpeakerVolumeLevel(percent: number): void {
+  useVoiceSettingsStore.getState().setSpeakerVolume(percent);
+  audioEls.forEach((el) => {
+    el.volume = percent / 100;
+  });
+}
 
 function attachSpeakingDetector(stream: MediaStream, onChange: (speaking: boolean) => void): () => void {
   if (stream.getAudioTracks().length === 0) return () => {};
@@ -79,6 +120,7 @@ function attachRemoteAudio(peerId: string, stream: MediaStream) {
     el = document.createElement("audio");
     el.autoplay = true;
     el.muted = useVoiceStore.getState().deafened;
+    el.volume = useVoiceSettingsStore.getState().speakerVolume / 100;
     document.body.appendChild(el);
     audioEls.set(peerId, el);
   }
@@ -305,9 +347,8 @@ export async function joinVoiceChannel(params: {
   currentChannelId = params.channelId;
 
   try {
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    localAudioTrack = micStream.getAudioTracks()[0] ?? null;
-    stopLocalSpeakingDetector = attachSpeakingDetector(micStream, (speaking) =>
+    localAudioTrack = await acquireMicTrack();
+    stopLocalSpeakingDetector = attachSpeakingDetector(new MediaStream([localAudioTrack]), (speaking) =>
       useVoiceStore.getState().setLocalSpeaking(speaking),
     );
 
@@ -342,6 +383,7 @@ export function leaveVoiceChannel(): void {
 
   localAudioTrack?.stop();
   localAudioTrack = null;
+  teardownMicPipeline();
   localVideoTrack?.stop();
   localVideoTrack = null;
   videoSenders.clear();
