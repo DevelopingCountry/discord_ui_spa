@@ -66,6 +66,69 @@ export function setSpeakerVolumeLevel(percent: number): void {
   });
 }
 
+// 노이즈 게이트 상태 — "사용자 지정" 프로필 + 수동 감도일 때만 음량이 임계값 아래로 내려가면
+// 실제 전송 트랙을 자동으로 닫는다(무음 처리). 수동 음소거와는 별개 축이라 둘을 합쳐서 계산한다.
+let micGateOpen = true;
+
+function applyMicTrackEnabled() {
+  if (!localAudioTrack) return;
+  localAudioTrack.enabled = !useVoiceStore.getState().micMuted && micGateOpen;
+}
+
+// 로컬 마이크 전용: 발화 테두리 표시(고정 임계값)와 감도 노이즈 게이트(설정된 임계값)를
+// 하나의 analyser 루프에서 같이 처리한다. 원격 참가자 쪽은 여전히 attachSpeakingDetector를 쓴다.
+function attachLocalMicControl(stream: MediaStream): () => void {
+  if (stream.getAudioTracks().length === 0) return () => {};
+
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(stream);
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  let speaking = false;
+  let silenceStartedAt = 0;
+  let rafId = 0;
+
+  const tick = () => {
+    analyser.getByteFrequencyData(data);
+    const average = data.reduce((sum, v) => sum + v, 0) / data.length;
+
+    if (average > SPEAKING_THRESHOLD) {
+      silenceStartedAt = 0;
+      if (!speaking) {
+        speaking = true;
+        useVoiceStore.getState().setLocalSpeaking(true);
+      }
+    } else if (speaking) {
+      if (silenceStartedAt === 0) {
+        silenceStartedAt = performance.now();
+      } else if (performance.now() - silenceStartedAt > SPEAKING_HANGOVER_MS) {
+        speaking = false;
+        useVoiceStore.getState().setLocalSpeaking(false);
+      }
+    }
+
+    const settings = useVoiceSettingsStore.getState();
+    const gatingActive = settings.inputProfile === "custom" && !settings.autoSensitivity;
+    const shouldOpen = !gatingActive || average / 255 > settings.sensitivityThreshold / 100;
+    if (shouldOpen !== micGateOpen) {
+      micGateOpen = shouldOpen;
+      applyMicTrackEnabled();
+    }
+
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+
+  return () => {
+    cancelAnimationFrame(rafId);
+    source.disconnect();
+    void audioContext.close();
+  };
+}
+
 function attachSpeakingDetector(stream: MediaStream, onChange: (speaking: boolean) => void): () => void {
   if (stream.getAudioTracks().length === 0) return () => {};
 
@@ -218,7 +281,6 @@ function getOrCreatePeer(peerId: string): RTCPeerConnection {
 
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-      // leave cleanup to explicit user-left/leave handling; nothing to do here beyond logging
       console.warn(`피어 ${peerId} 연결 상태: ${pc.connectionState}`);
     }
   };
@@ -348,9 +410,9 @@ export async function joinVoiceChannel(params: {
 
   try {
     localAudioTrack = await acquireMicTrack();
-    stopLocalSpeakingDetector = attachSpeakingDetector(new MediaStream([localAudioTrack]), (speaking) =>
-      useVoiceStore.getState().setLocalSpeaking(speaking),
-    );
+    micGateOpen = true;
+    applyMicTrackEnabled();
+    stopLocalSpeakingDetector = attachLocalMicControl(new MediaStream([localAudioTrack]));
 
     await connectVoiceSocket(params.accessToken);
     unsubscribeSignal = onVoiceSignal(handleSignal);
@@ -402,13 +464,14 @@ export function leaveVoiceChannel(): void {
   myNickname = "";
   currentChannelId = null;
   micMutedBeforeDeafen = false;
+  micGateOpen = true;
 
   useVoiceStore.getState().reset();
 }
 
 export function setMicMuted(muted: boolean): void {
-  if (localAudioTrack) localAudioTrack.enabled = !muted;
   useVoiceStore.getState().setLocalMic(muted);
+  applyMicTrackEnabled();
   broadcastMediaState();
 }
 

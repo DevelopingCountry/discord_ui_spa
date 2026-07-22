@@ -4,8 +4,8 @@ import { Switch } from "@/components/ui/switch";
 import { useVoiceSettingsStore, type InputProfile } from "@/components/voice/use-voice-settings-store";
 import { setMicGainLevel, setSpeakerVolumeLevel } from "@/components/voice/voice-connection";
 
-// TODO: 지금은 UI 껍데기 — 실제 마이크/스피커 장치 전환과 발화 감도는 voice-connection.ts와
-// 연동하는 다음 단계에서 구현 예정. 마이크 테스트, 마이크/스피커 음량은 실제 오디오를 다룬다.
+// TODO: 마이크/스피커 장치 전환(select)은 아직 UI 껍데기 — voice-connection.ts와 연동 예정.
+// 마이크 테스트, 마이크/스피커 음량, 입력 감도(노이즈 게이트)는 실제 오디오를 다룬다.
 
 const INPUT_PROFILES: { value: InputProfile; title: string; desc: string }[] = [
   { value: "isolation", title: "음성 격리", desc: "멋진 목소리만 들려 드릴게요. 소음은 Discord가 알아서 처리할게요" },
