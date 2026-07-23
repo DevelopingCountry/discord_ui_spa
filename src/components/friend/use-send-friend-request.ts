@@ -8,11 +8,11 @@ export const useSendFriendRequest = () => {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (targetId: string) => {
+    mutationFn: async (targetNickname: string) => {
       const res = await fetch(`${API_URL}/friend`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ targetId }),
+        body: JSON.stringify({ targetNickname }),
       });
       if (!res.ok) throw new Error("친구 요청 실패");
       const data = await res.json();
