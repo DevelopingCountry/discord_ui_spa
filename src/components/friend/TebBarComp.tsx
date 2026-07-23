@@ -3,15 +3,18 @@ import { useState } from "react";
 import { useActiveStore } from "@/components/friend/useSearchStore";
 import { Button } from "@/components/ui/button";
 import { type MainScreenContextProps, useMainScreenContext } from "@/components/friend/main-screen-context";
+import { useFriendsQuery } from "@/components/friend/use-friends-query";
 
 export function TabBarComp() {
   const { setIsActive } = useActiveStore();
   const [selectedTabId, setSelectedTabId] = useState(1);
   const useMainScreenContext1: MainScreenContextProps | null = useMainScreenContext();
   const setState = useMainScreenContext1?.setState;
-  const TabItems: { id: number; label: string }[] = [
+  const { data: friendsData } = useFriendsQuery();
+  const pendingCount = friendsData?.filter((f) => f.status === "PENDING" && !f.isSender).length ?? 0;
+  const TabItems: { id: number; label: string; count?: number }[] = [
     { id: 1, label: "모두" },
-    { id: 2, label: "대기중" },
+    { id: 2, label: "대기중", count: pendingCount },
   ];
   const addFriendHandler = () => {
     if (setState) {
@@ -29,6 +32,7 @@ export function TabBarComp() {
           <li key={item.id}>
             <TabItem
               label={item.label}
+              count={item.count}
               isSelected={selectedTabId === item.id}
               onClick={() => {
                 if (setState) {

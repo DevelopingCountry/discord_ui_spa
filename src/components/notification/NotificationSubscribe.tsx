@@ -49,7 +49,6 @@ export default function NotificationSubscribe() {
     switch (type) {
       case "INVITE":
       case "DM":
-      case "FRIEND_REQUEST":
         addNotification({
           id: crypto.randomUUID(),
           type: type as NotificationType,
@@ -57,6 +56,10 @@ export default function NotificationSubscribe() {
           isRead: false,
           createdAt: new Date().toISOString(),
         });
+        queryClient.invalidateQueries({ queryKey: friendsQueryKey });
+        break;
+      case "FRIEND_REQUEST":
+        // 대기중 탭 배지로 대체됨 — 알림함에는 넣지 않고 friendsQueryKey만 갱신
         queryClient.invalidateQueries({ queryKey: friendsQueryKey });
         break;
       case "FRIEND_ONLINE":
