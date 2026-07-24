@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { Hash, Volume2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCreateChannel } from "@/components/channel/use-create-channel";
 
 interface CreateChannelModalProps {
@@ -17,16 +17,18 @@ interface CreateChannelModalProps {
 export const CreateChannelModal = ({ isOpen, onClose, serverId, defaultType }: CreateChannelModalProps) => {
   const [channelType, setChannelType] = useState<"CHAT" | "VOICE">("CHAT");
   const [channelName, setChannelName] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { mutate } = useCreateChannel();
+
+  useEffect(() => {
+    if (isOpen) setErrorMessage(null);
+  }, [isOpen]);
 
   const handleClose = () => {
     setChannelName("");
     onClose();
   };
   const handleCreateChannel = () => {
-    console.log("새 채널 생성:");
-    console.log("새 채널 이름:", channelName);
-    console.log("현 서버 id", serverId);
     mutate(
       {
         channelName: channelName,
@@ -35,10 +37,11 @@ export const CreateChannelModal = ({ isOpen, onClose, serverId, defaultType }: C
       },
       {
         onSuccess: () => {
+          setErrorMessage(null);
           onClose();
         },
         onError: (err) => {
-          console.error("채널 생성 실패:", err);
+          setErrorMessage(err.message);
         },
       },
     );
@@ -88,11 +91,15 @@ export const CreateChannelModal = ({ isOpen, onClose, serverId, defaultType }: C
               )}
               <Input
                 value={channelName}
-                onChange={(e) => setChannelName(e.target.value)}
+                onChange={(e) => {
+                  setChannelName(e.target.value);
+                  setErrorMessage(null);
+                }}
                 placeholder="새로운 채널"
                 className="pl-10 bg-[#1E1F22] border-none text-white focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
+            {errorMessage && <p className="text-left text-xs text-red-400 mt-1">{errorMessage}</p>}
           </div>
 
           <div className="space-y-2"></div>

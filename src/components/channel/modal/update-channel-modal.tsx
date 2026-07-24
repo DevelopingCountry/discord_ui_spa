@@ -24,18 +24,27 @@ export const UpdateChannelModal = ({
   serverId,
 }: DeleteChannelModalProps) => {
   const [channelname, setChannelName] = useState(channelName);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const updateChannel = useUpdateChannel();
 
   useEffect(() => {
     if (isOpen) {
-      console.log("UpdateChannelModal이 열렸습니다.", { channelId, serverId });
+      setChannelName(channelName);
+      setErrorMessage(null);
     }
-  }, [isOpen, channelId, serverId]);
+  }, [isOpen, channelName]);
 
   const handleUpdate = () => {
-    console.log("채널 업데이트");
-    updateChannel.mutate({ serverId, channelId, channelname });
-    onClose();
+    updateChannel.mutate(
+      { serverId, channelId, channelname },
+      {
+        onSuccess: () => {
+          setErrorMessage(null);
+          onClose();
+        },
+        onError: (err) => setErrorMessage(err.message),
+      },
+    );
   };
 
   return (
@@ -53,9 +62,13 @@ export const UpdateChannelModal = ({
               <div className="text-left text-xs font-semibold text-[#B5BAC1]">채널 이름</div>
               <Input
                 value={channelname}
-                onChange={(e) => setChannelName(e.target.value)}
+                onChange={(e) => {
+                  setChannelName(e.target.value);
+                  setErrorMessage(null);
+                }}
                 className="bg-[#1E1F22] border-none text-white focus-visible:ring-0 focus-visible:ring-offset-0"
               />
+              {errorMessage && <p className="text-left text-xs text-red-400 mt-1">{errorMessage}</p>}
             </div>
           </div>
 

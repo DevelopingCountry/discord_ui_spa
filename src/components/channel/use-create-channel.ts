@@ -13,7 +13,10 @@ export const useCreateChannel = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ channelName: data.channelName, type: data.type }),
       });
-      if (!res.ok) throw new Error("채널 생성 실패");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "채널 생성 실패");
+      }
       return res.json();
     },
     onSuccess: (_data, variables) => {
