@@ -210,10 +210,7 @@ export default function ChannelPage() {
                 #{currentChannel?.name || "채널"}에 오신 걸 환영합니다!
               </h1>
               <p className="text-[#b5bac1] text-base mb-5">#{currentChannel?.name || "채널"} 채널의 시작이에요.</p>
-              <button className="flex items-center gap-2 px-3 py-1.5 bg-[#4e5058] hover:bg-[#6d6f78] text-white text-sm rounded transition-colors">
-                <Pencil className="w-4 h-4" />
-                채널 편집
-              </button>
+          
             </div>
 
             {/* 날짜 구분선 + 메시지 */}
@@ -301,58 +298,7 @@ export default function ChannelPage() {
             )}
           </div>
 
-          {/* 오른쪽 멤버 패널 */}
-          {showMembers && (
-            <div className="w-60 flex-shrink-0 bg-discord1and4 overflow-y-auto py-4 px-2 border-l border-[#1e1f22]">
-              {onlineMembers.length > 0 && (
-                <>
-                  <div className="text-xs font-semibold text-[#96989d] px-2 mb-2">온라인 — {onlineMembers.length}</div>
-                  {onlineMembers.map((m) => (
-                    <div
-                      key={m.userId}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35373c] cursor-pointer"
-                    >
-                      <div className="relative flex-shrink-0">
-                        <img
-                          src={m.imageUrl || "/assets/discord_blue.png"}
-                          alt={m.nickname}
-                          width={32}
-                          height={32}
-                          className="rounded-full"
-                        />
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#2b2d31]" />
-                      </div>
-                      <span className="text-[#dcddde] text-sm truncate">{m.nickname}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {offlineMembers.length > 0 && (
-                <>
-                  <div className="text-xs font-semibold text-[#96989d] px-2 mt-4 mb-2">
-                    오프라인 — {offlineMembers.length}
-                  </div>
-                  {offlineMembers.map((m) => (
-                    <div
-                      key={m.userId}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35373c] cursor-pointer"
-                    >
-                      <div className="relative flex-shrink-0 opacity-50">
-                        <img
-                          src={m.imageUrl || "/assets/discord_blue.png"}
-                          alt={m.nickname}
-                          width={32}
-                          height={32}
-                          className="rounded-full grayscale"
-                        />
-                      </div>
-                      <span className="text-[#96989d] text-sm truncate">{m.nickname}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
+          
         </div>
 
         {/* 메시지 입력창 */}
