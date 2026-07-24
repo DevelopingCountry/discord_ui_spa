@@ -1,7 +1,7 @@
 import SectionOne from "@/components/layout/sectionOne";
 import SectionFour from "@/components/layout/sectionFour";
 import SectionOneAndFour from "@/components/layout/sectionOneAndFour";
-import { Bell, Hash, Pencil, Search, Users } from "lucide-react";
+import { Bell, Hash, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChannelsQuery } from "@/components/channel/use-channels-query";
 import MessageInput from "@/components/messeage-input";
@@ -89,8 +89,8 @@ export default function ChannelPage() {
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingMessage, setEditingMessage] = useState<{ messageId: string; content: string } | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [showMembers, setShowMembers] = useState(true);
+  const [, setMembers] = useState<Member[]>([]);
+  const [, setShowMembers] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -162,8 +162,6 @@ export default function ChannelPage() {
   };
 
   const grouped = groupMessages(messages);
-  const onlineMembers = members.filter((m) => m.online);
-  const offlineMembers = members.filter((m) => !m.online);
 
   if (currentChannel?.type === "VOICE") {
     return (

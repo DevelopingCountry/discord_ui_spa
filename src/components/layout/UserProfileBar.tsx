@@ -1,4 +1,5 @@
 import { useProfileQuery } from "@/components/profile/use-profile-query";
+import { UpdateProfileModal } from "@/components/profile/modal/update-profile-modal";
 import { VoicePanel } from "@/components/voice/voice-panel";
 import { Settings } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -8,6 +9,7 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
   const { data: profile } = useProfileQuery();
   const { logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,6 +62,15 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
               <button
                 onClick={() => {
                   setShowMenu(false);
+                  setIsProfileModalOpen(true);
+                }}
+                className="w-full text-left px-3 py-1.5 text-sm text-[#dcddde] hover:bg-[#35373c] rounded-sm transition-colors"
+              >
+                프로필 변경
+              </button>
+              <button
+                onClick={() => {
+                  setShowMenu(false);
                   logout();
                 }}
                 className="w-full text-left px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 rounded-sm transition-colors"
@@ -70,6 +81,13 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
           )}
         </div>
       </div>
+
+      <UpdateProfileModal
+        isOpen={isProfileModalOpen}
+        currentNickname={profile?.nickname ?? ""}
+        currentImageUrl={profile?.imageUrl}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </div>
   );
 };
