@@ -1,5 +1,5 @@
 import React from "react";
-import { Bell, Cog, Gift, UserPlus, X } from "lucide-react";
+import { Bell, Cog, UserPlus, X } from "lucide-react";
 import { useRef, useEffect } from "react";
 
 export type ServerModalType = "invite" | "update" | "alarm" | "leave";
