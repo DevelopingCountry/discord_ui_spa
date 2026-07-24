@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Camera, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useUpdateServerInfo } from "@/components/server/use-update-server-info";
 
 interface UpdateServerModalProps {
@@ -18,7 +18,16 @@ interface UpdateServerModalProps {
 export const UpdateServerModal = ({ isOpen, onClose, onBack, currentServerName, serverId }: UpdateServerModalProps) => {
   const [serverName, setServerName] = useState(currentServerName);
   const [serverImage, setServerImage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { mutate } = useUpdateServerInfo();
+
+  useEffect(() => {
+    if (isOpen) {
+      setServerName(currentServerName);
+      setErrorMessage(null);
+    }
+  }, [isOpen, currentServerName]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -35,10 +44,11 @@ export const UpdateServerModal = ({ isOpen, onClose, onBack, currentServerName, 
       { serverName: serverName, imageUrl: serverImage, serverId: serverId },
       {
         onSuccess: () => {
+          setErrorMessage(null);
           onClose(); // 모달 닫기
         },
         onError: (err) => {
-          console.error("서버 정보 수정 실패:", err);
+          setErrorMessage(err.message);
         },
       },
     );
@@ -85,17 +95,13 @@ export const UpdateServerModal = ({ isOpen, onClose, onBack, currentServerName, 
               <div className="text-left text-xs font-semibold text-[#B5BAC1]">서버 이름</div>
               <Input
                 value={serverName}
-                onChange={(e) => setServerName(e.target.value)}
+                onChange={(e) => {
+                  setServerName(e.target.value);
+                  setErrorMessage(null);
+                }}
                 className="bg-[#1E1F22] border-none text-white focus-visible:ring-0 focus-visible:ring-offset-0"
               />
-            </div>
-
-            <div className="w-full text-left text-xs text-[#B5BAC1] mt-4">
-              서버를 만들면 Discord의{" "}
-              <a href="#" className="text-[#00A8FC] hover:underline">
-                커뮤니티 지침
-              </a>
-              에 동의하게 됩니다.
+              {errorMessage && <p className="text-left text-xs text-red-400 mt-1">{errorMessage}</p>}
             </div>
           </div>
 
@@ -108,7 +114,7 @@ export const UpdateServerModal = ({ isOpen, onClose, onBack, currentServerName, 
               onClick={handleSubmit}
               disabled={!serverName.trim()}
             >
-              만들기
+              변경하기
             </Button>
           </div>
         </div>

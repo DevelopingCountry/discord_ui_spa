@@ -10,6 +10,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { friendsQueryKey } from "@/components/friend/use-friends-query";
 import { serverInvitesQueryKey } from "@/components/server/use-server-invites-query";
+import { serversQueryKey } from "@/components/server/use-servers-query";
+import type { server } from "@/components/type/response";
 
 type NotificationPayload = {
   fromNickname: string;
@@ -21,6 +23,7 @@ type NotificationPayload = {
   serverName?: string;
   serverUrl?: string;
   serverId?: string;
+  imageUrl?: string;
 };
 
 export default function NotificationSubscribe() {
@@ -80,6 +83,11 @@ export default function NotificationSubscribe() {
         if (payload.serverId) {
           queryClient.invalidateQueries({ queryKey: serverInvitesQueryKey(payload.serverId) });
         }
+        break;
+      case "SERVER_UPDATED":
+        queryClient.setQueryData<server[]>(serversQueryKey, (prev = []) =>
+          prev.map((s) => (s.id === payload.serverId ? { ...s, name: payload.serverName ?? s.name, imageUrl: payload.imageUrl ?? s.imageUrl } : s)),
+        );
         break;
       default:
     }

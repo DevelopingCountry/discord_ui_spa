@@ -13,7 +13,10 @@ export const useCreateServer = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("서버 생성 실패");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "서버 생성 실패");
+      }
       return res.json();
     },
     onSuccess: () => {

@@ -39,11 +39,16 @@ export const CustomizeServerModal = ({ isOpen, onClose, onBack }: CustomizeServe
   const { data: profile } = useProfileQuery();
   const [serverName, setServerName] = useState("내 서버");
   const [serverImage, setServerImage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { mutate } = useCreateServer();
 
   useEffect(() => {
     if (profile?.nickname) setServerName(`${profile.nickname}님의 서버`);
   }, [profile?.nickname]);
+
+  useEffect(() => {
+    if (isOpen) setErrorMessage(null);
+  }, [isOpen]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,8 +65,11 @@ export const CustomizeServerModal = ({ isOpen, onClose, onBack }: CustomizeServe
     mutate(
       { serverName, imageUrl: serverImage },
       {
-        onSuccess: () => onClose(),
-        onError: (err) => console.error("서버 생성 실패:", err),
+        onSuccess: () => {
+          setErrorMessage(null);
+          onClose();
+        },
+        onError: (err) => setErrorMessage(err.message),
       },
     );
   };
@@ -98,9 +106,13 @@ export const CustomizeServerModal = ({ isOpen, onClose, onBack }: CustomizeServe
               <div className="text-left text-xs font-semibold text-[#B5BAC1]">서버 이름</div>
               <Input
                 value={serverName}
-                onChange={(e) => setServerName(e.target.value)}
+                onChange={(e) => {
+                  setServerName(e.target.value);
+                  setErrorMessage(null);
+                }}
                 className="bg-[#1E1F22] border-none text-white focus-visible:ring-0 focus-visible:ring-offset-0"
               />
+              {errorMessage && <p className="text-left text-xs text-red-400 mt-1">{errorMessage}</p>}
             </div>
 
             <div className="w-full text-left text-xs text-[#B5BAC1] mt-4">
