@@ -36,6 +36,10 @@ async function acquireMicTrack(): Promise<MediaStreamTrack> {
   rawMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   micAudioContext = new AudioContext();
+  // getUserMedia 권한 프롬프트를 기다리는 동안(await) 브라우저의 "사용자 제스처" 유효기간이
+  // 끝나버려 AudioContext가 suspended 상태로 생성될 수 있다 — resume()을 명시적으로 호출하지
+  // 않으면 이 그래프를 지나는 오디오(피어 전송 + 발화 감지 둘 다)가 조용히 무음이 된다.
+  await micAudioContext.resume();
   const source = micAudioContext.createMediaStreamSource(rawMicStream);
   micGainNode = micAudioContext.createGain();
   micGainNode.gain.value = useVoiceSettingsStore.getState().micVolume / 100;
@@ -81,6 +85,7 @@ function attachLocalMicControl(stream: MediaStream): () => void {
   if (stream.getAudioTracks().length === 0) return () => {};
 
   const audioContext = new AudioContext();
+  void audioContext.resume(); // acquireMicTrack과 동일한 이유로 suspended 상태 방지
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 512;
@@ -133,6 +138,7 @@ function attachSpeakingDetector(stream: MediaStream, onChange: (speaking: boolea
   if (stream.getAudioTracks().length === 0) return () => {};
 
   const audioContext = new AudioContext();
+  void audioContext.resume(); // acquireMicTrack과 동일한 이유로 suspended 상태 방지
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 512;
