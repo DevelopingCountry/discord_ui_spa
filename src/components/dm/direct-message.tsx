@@ -23,6 +23,11 @@ export default function DirectMessage({ dm }: { dm: DmList }) {
       </div>
       <div className="flex-1 flex justify-between items-center">
         <span className="text-white text-sm font-medium">{dm?.targetNickname || "No Name"}</span>
+        {dm.unreadCount > 0 && (
+          <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-xs font-semibold">
+            {dm.unreadCount}
+          </span>
+        )}
       </div>
     </button>
   );

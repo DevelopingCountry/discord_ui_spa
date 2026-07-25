@@ -8,9 +8,8 @@ import { useUpdateDmMessage, useDeleteDmMessage } from "@/components/dm/use-dm-m
 import { useMessageSocketSync } from "@/components/hooks/useMessageSocketSync";
 import { groupMessagesByDay } from "@/lib/message-grouping";
 import { useDmsQuery, dmsQueryKey } from "@/components/dm/use-dms-query";
-import { useDeleteFriend } from "@/components/friend/use-delete-friend";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import type { DmList } from "@/components/type/response";
 
 const GROUPING_WINDOW_MS = 60 * 1000;
 
@@ -18,10 +17,8 @@ export default function DmChat({ dmId }: { dmId: string | undefined }) {
   const [editingMessage, setEditingMessage] = useState<{ messageId: string; content: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { userId } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: dmList = [] } = useDmsQuery();
-  const deleteFriendMutation = useDeleteFriend();
 
   const { data: messages = [] } = useDmMessagesQuery(dmId);
   const updateMessageMutation = useUpdateDmMessage(dmId ?? "");
@@ -30,15 +27,17 @@ export default function DmChat({ dmId }: { dmId: string | undefined }) {
   const currentDm = dmList.find((d) => d.dmId === dmId);
   const partnerName = currentDm?.targetNickname ?? "";
   const partnerAvatar = currentDm?.targetImageUrl || "/assets/discord_blue.png";
-  const targetId = currentDm?.targetId ?? "";
 
   useEffect(() => {
     if (!dmId) return;
     publish(`/app/dm/${dmId}/enter`, {});
+    queryClient.setQueryData<DmList[]>(dmsQueryKey, (prev = []) =>
+      prev.map((d) => (d.dmId === dmId ? { ...d, unreadCount: 0 } : d)),
+    );
     return () => {
       publish(`/app/dm/${dmId}/leave`, {});
     };
-  }, [dmId]);
+  }, [dmId, queryClient]);
 
   useMessageSocketSync(dmId ? `/topic/dm/${dmId}` : null, dmMessagesQueryKey(dmId ?? ""));
 
@@ -64,19 +63,6 @@ export default function DmChat({ dmId }: { dmId: string | undefined }) {
     });
   };
 
-  const deleteFriend = () => {
-    if (!targetId) return;
-    const confirmed = confirm(`${partnerName}님을 친구 목록에서 삭제하시겠습니까?`);
-    if (!confirmed) return;
-    deleteFriendMutation.mutate(targetId, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: dmsQueryKey });
-        navigate("/channels/me");
-      },
-      onError: (err) => console.error("❌ 친구 삭제 실패:", err),
-    });
-  };
-
   const groupedMessages = groupMessagesByDay(messages, GROUPING_WINDOW_MS);
 
   useEffect(() => {
@@ -92,12 +78,7 @@ export default function DmChat({ dmId }: { dmId: string | undefined }) {
           <h2 className="text-3xl font-bold text-white mb-1">{partnerName}</h2>
           <p className="text-[#b5bac1] text-sm mb-3">{partnerName}</p>
           <p className="text-[#b5bac1] mb-4">{partnerName}님과 나눈 다이렉트 메시지의 첫 부분이에요.</p>
-          <button
-            onClick={deleteFriend}
-            className="px-3 py-1.5 text-sm bg-[#2b2d31] hover:bg-[#36373d] text-white rounded border border-[#3f4147] transition-colors"
-          >
-            친구 삭제하기
-          </button>
+          
         </div>
 
         {/* 날짜별 메시지 */}

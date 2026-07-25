@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { friendsQueryKey } from "@/components/friend/use-friends-query";
 import { serverInvitesQueryKey } from "@/components/server/use-server-invites-query";
 import { serversQueryKey } from "@/components/server/use-servers-query";
+import { dmsQueryKey } from "@/components/dm/use-dms-query";
 import type { server } from "@/components/type/response";
 
 type NotificationPayload = {
@@ -51,7 +52,6 @@ export default function NotificationSubscribe() {
     console.log("📩 알림 수신:", type, payload);
     switch (type) {
       case "INVITE":
-      case "DM":
         addNotification({
           id: crypto.randomUUID(),
           type: type as NotificationType,
@@ -60,6 +60,10 @@ export default function NotificationSubscribe() {
           createdAt: new Date().toISOString(),
         });
         queryClient.invalidateQueries({ queryKey: friendsQueryKey });
+        break;
+      case "DM":
+        // 대화방 옆 안읽음 배지로 대체됨 — 알림함에는 넣지 않고 dmsQueryKey만 갱신
+        queryClient.invalidateQueries({ queryKey: dmsQueryKey });
         break;
       case "FRIEND_REQUEST":
         // 대기중 탭 배지로 대체됨 — 알림함에는 넣지 않고 friendsQueryKey만 갱신
