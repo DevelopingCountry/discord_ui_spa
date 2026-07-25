@@ -6,7 +6,6 @@ import SectionFour from "@/components/layout/sectionFour";
 import SearchMessage from "@/components/dm/search-message";
 import DmName from "@/components/dm/dm-name";
 import DmChat2 from "@/components/dm/dm-chat2";
-import OnlineFriendsPanel from "@/components/friend/online-friends-panel";
 
 export default function DmChatPage() {
   const { dmId } = useParams<{ dmId: string }>();
@@ -34,7 +33,7 @@ export default function DmChatPage() {
             <DmChat2 dmId={dmId} />
           </div>
 
-          <OnlineFriendsPanel />
+          {/* <OnlineFriendsPanel /> */}
         </div>
       </SectionFour>
     </>
