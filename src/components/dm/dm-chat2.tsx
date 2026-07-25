@@ -1,62 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import axios from "axios";
 import MessageInput from "@/components/messeage-input";
 import SectionFour from "@/components/layout/sectionFour";
 import { useAuth } from "@/components/auth/AuthContext";
-import { API_URL } from "@/lib/config";
 import { publish } from "@/lib/socket";
-import { useSocketSubscribe } from "@/components/hooks/useSocketSubscribe";
+import { dmMessagesQueryKey, useDmMessagesQuery } from "@/components/dm/use-dm-messages-query";
+import { useUpdateDmMessage, useDeleteDmMessage } from "@/components/dm/use-dm-message-mutations";
+import { useMessageSocketSync } from "@/components/hooks/useMessageSocketSync";
+import { groupMessagesByDay } from "@/lib/message-grouping";
 import { useDmsQuery, dmsQueryKey } from "@/components/dm/use-dms-query";
 import { useDeleteFriend } from "@/components/friend/use-delete-friend";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
-type Message = {
-  messageId: string;
-  userId: string;
-  nickName: string;
-  content: string;
-  createdAt: string;
-  avatarUrl?: string;
-};
-
-type MessageGroup = {
-  userId: string;
-  nickName: string;
-  avatarUrl?: string;
-  timeLabel: string;
-  messages: { messageId: string; content: string; createdAt: string }[];
-};
-
-type GroupedDay = {
-  dateLabel: string;
-  messageGroups: MessageGroup[];
-};
+const GROUPING_WINDOW_MS = 60 * 1000;
 
 export default function DmChat({ dmId }: { dmId: string | undefined }) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [editingMessage, setEditingMessage] = useState<{ messageId: string; content: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
   const { userId } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: dmList = [] } = useDmsQuery();
   const deleteFriendMutation = useDeleteFriend();
 
+  const { data: messages = [] } = useDmMessagesQuery(dmId);
+  const updateMessageMutation = useUpdateDmMessage(dmId ?? "");
+  const deleteMessageMutation = useDeleteDmMessage(dmId ?? "");
+
   const currentDm = dmList.find((d) => d.dmId === dmId);
   const partnerName = currentDm?.targetNickname ?? "";
   const partnerAvatar = currentDm?.targetImageUrl || "/assets/discord_blue.png";
   const targetId = currentDm?.targetId ?? "";
-
-  useEffect(() => {
-    if (!token || !dmId) return;
-
-    axios
-      .get(`${API_URL}/dm/${dmId}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setMessages(res.data.response || []))
-      .catch((err) => console.error("❌ 메시지 불러오기 실패:", err));
-  }, [token, dmId]);
 
   useEffect(() => {
     if (!dmId) return;
@@ -66,50 +40,28 @@ export default function DmChat({ dmId }: { dmId: string | undefined }) {
     };
   }, [dmId]);
 
-  useSocketSubscribe<{ type: "SEND" | "UPDATE" | "DELETE"; message: Message }>(
-    dmId ? `/topic/dm/${dmId}` : null,
-    (data) => {
-      if (data.type === "SEND") {
-        setMessages((prev) => [...prev, data.message]);
-      } else if (data.type === "UPDATE") {
-        setMessages((prev) =>
-          prev.map((m) => (m.messageId === data.message.messageId ? { ...m, content: data.message.content } : m)),
-        );
-      } else if (data.type === "DELETE") {
-        setMessages((prev) => prev.filter((m) => m.messageId !== data.message.messageId));
-      }
-    },
-  );
+  useMessageSocketSync(dmId ? `/topic/dm/${dmId}` : null, dmMessagesQueryKey(dmId ?? ""));
 
   const sendMessage = (content: string) => {
     if (!dmId || !content.trim()) return;
     publish(`/app/dm/${dmId}`, { content });
   };
 
-  const updateMessage = async (messageId: string, content: string) => {
+  const updateMessage = (messageId: string, content: string) => {
     if (!content.trim()) return;
-    try {
-      await axios.patch(
-        `${API_URL}/dm/${dmId}/message/${messageId}`,
-        { content },
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } },
-      );
-      setMessages((prev) => prev.map((msg) => (msg.messageId === messageId ? { ...msg, content } : msg)));
-      setEditingMessage(null);
-    } catch (err) {
-      console.error("❌ 메시지 수정 실패:", err);
-    }
+    updateMessageMutation.mutate(
+      { messageId, content },
+      {
+        onSuccess: () => setEditingMessage(null),
+        onError: (err) => console.error("❌ 메시지 수정 실패:", err),
+      },
+    );
   };
 
-  const deleteMessage = async (messageId: string) => {
-    try {
-      await axios.delete(`${API_URL}/dm/${dmId}/message/${messageId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMessages((prev) => prev.filter((msg) => msg.messageId !== messageId));
-    } catch (err) {
-      console.error("❌ 메시지 삭제 실패:", err);
-    }
+  const deleteMessage = (messageId: string) => {
+    deleteMessageMutation.mutate(messageId, {
+      onError: (err) => console.error("❌ 메시지 삭제 실패:", err),
+    });
   };
 
   const deleteFriend = () => {
@@ -125,61 +77,7 @@ export default function DmChat({ dmId }: { dmId: string | undefined }) {
     });
   };
 
-  const groupMessages = (msgs: Message[]): GroupedDay[] => {
-    const grouped: GroupedDay[] = [];
-    let currentDateKey = "";
-    let currentGroup: MessageGroup | null = null;
-    let currentDay: GroupedDay | null = null;
-
-    msgs.forEach((msg) => {
-      const date = new Date(msg.createdAt);
-      const dateKey = date.toDateString();
-      const timeLabel = new Intl.DateTimeFormat("ko-KR", {
-        hour: "numeric",
-        minute: "numeric",
-        hour12: true,
-      }).format(date);
-
-      if (dateKey !== currentDateKey) {
-        currentDateKey = dateKey;
-        currentDay = {
-          dateLabel: new Intl.DateTimeFormat("ko-KR", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }).format(date),
-          messageGroups: [],
-        };
-        grouped.push(currentDay);
-        currentGroup = null;
-      }
-
-      const lastMsg = currentGroup?.messages.at(-1);
-      const lastTime = lastMsg ? new Date(lastMsg.createdAt) : null;
-      const isSameGroup =
-        currentGroup &&
-        currentGroup.userId === msg.userId &&
-        lastTime &&
-        date.getTime() - lastTime.getTime() <= 60 * 1000;
-
-      if (isSameGroup) {
-        currentGroup!.messages.push({ messageId: msg.messageId, content: msg.content, createdAt: msg.createdAt });
-      } else {
-        currentGroup = {
-          userId: msg.userId,
-          nickName: msg.nickName,
-          avatarUrl: msg.avatarUrl,
-          timeLabel,
-          messages: [{ messageId: msg.messageId, content: msg.content, createdAt: msg.createdAt }],
-        };
-        currentDay?.messageGroups.push(currentGroup);
-      }
-    });
-
-    return grouped;
-  };
-
-  const groupedMessages = groupMessages(messages);
+  const groupedMessages = groupMessagesByDay(messages, GROUPING_WINDOW_MS);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
