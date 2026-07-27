@@ -3,9 +3,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { useVoiceSettingsStore, type InputProfile } from "@/components/voice/use-voice-settings-store";
 import { setMicGainLevel, setSpeakerVolumeLevel } from "@/components/voice/voice-connection";
-
-// TODO: 마이크/스피커 장치 전환(select)은 아직 UI 껍데기 — voice-connection.ts와 연동 예정.
-// 마이크 테스트, 마이크/스피커 음량, 입력 감도(노이즈 게이트)는 실제 오디오를 다룬다.
+import { VolumeSlider } from "@/components/voice/volume-slider";
 
 const INPUT_PROFILES: { value: InputProfile; title: string; desc: string }[] = [
   { value: "isolation", title: "음성 격리", desc: "멋진 목소리만 들려 드릴게요. 소음은 Discord가 알아서 처리할게요" },
@@ -32,62 +30,7 @@ function LevelMeter({ level, activeColor = "#f0b232" }: { level: number; activeC
   );
 }
 
-// 마이크/스피커 음량용 단순 슬라이더 — 트랙 색은 값이 바뀌어도, 호버/드래그해도 항상 같은 색이고
-// (파란 채움 + 회색 나머지) 손잡이는 흰 동그라미. 손잡이에 마우스를 올리면 퍼센트만 툴팁으로 보여준다.
-function VolumeSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [hovering, setHovering] = useState(false);
-  const [dragging, setDragging] = useState(false);
 
-  const updateFromClientX = (clientX: number) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const rect = track.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    onChange(Math.round(ratio * 100));
-  };
-
-  useEffect(() => {
-    if (!dragging) return;
-    const handleMove = (e: PointerEvent) => updateFromClientX(e.clientX);
-    const handleUp = () => setDragging(false);
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging]);
-
-  return (
-    <div
-      ref={trackRef}
-      className="relative h-1.5 w-full cursor-pointer select-none rounded-full bg-[#4e5058]"
-      onPointerDown={(e) => {
-        setDragging(true);
-        updateFromClientX(e.clientX);
-      }}
-    >
-      <div className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-[#5865f2]" style={{ width: `${value}%` }} />
-      <div
-        className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow"
-        style={{ left: `${value}%` }}
-        onMouseEnter={() => setHovering(true)}
-        onMouseLeave={() => setHovering(false)}
-      >
-        {(hovering || dragging) && (
-          <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#111214] px-2 py-1 text-xs text-white shadow">
-            {value}%
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// 감도 임계값(드래그 가능한 손잡이, 초록/회색 트랙)과 실시간 마이크 음량(손잡이 위를 오가는
-// 어두운 바)을 한 트랙에 같이 보여준다. 손잡이에 마우스를 올리면 대략적인 dB 값을 툴팁으로 표시.
 function SensitivitySlider({
   value,
   onChange,

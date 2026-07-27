@@ -25,9 +25,9 @@ let localAudioTrack: MediaStreamTrack | null = null;
 let localVideoTrack: MediaStreamTrack | null = null;
 let micMutedBeforeDeafen = false;
 let stopLocalSpeakingDetector: (() => void) | null = null;
+let micPermissionStatus: PermissionStatus | null = null;
 
-// 마이크 음량 슬라이더용 오디오 그래프: 실제 마이크 캡처 → GainNode → 가상 목적지
-// (그 결과 트랙을 피어에 전송 + 발화감지에도 사용)
+
 let micAudioContext: AudioContext | null = null;
 let micGainNode: GainNode | null = null;
 let rawMicStream: MediaStream | null = null;
@@ -36,9 +36,7 @@ async function acquireMicTrack(): Promise<MediaStreamTrack> {
   rawMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   micAudioContext = new AudioContext();
-  // getUserMedia 권한 프롬프트를 기다리는 동안(await) 브라우저의 "사용자 제스처" 유효기간이
-  // 끝나버려 AudioContext가 suspended 상태로 생성될 수 있다 — resume()을 명시적으로 호출하지
-  // 않으면 이 그래프를 지나는 오디오(피어 전송 + 발화 감지 둘 다)가 조용히 무음이 된다.
+
   await micAudioContext.resume();
   const source = micAudioContext.createMediaStreamSource(rawMicStream);
   micGainNode = micAudioContext.createGain();
@@ -56,6 +54,47 @@ function teardownMicPipeline() {
   micGainNode = null;
   void micAudioContext?.close();
   micAudioContext = null;
+}
+
+function stopWatchingMicPermission() {
+  if (micPermissionStatus) micPermissionStatus.onchange = null;
+  micPermissionStatus = null;
+}
+
+
+async function watchMicPermissionForRecovery() {
+  if (localAudioTrack || !currentChannelId) return;
+  if (!navigator.permissions?.query) return;
+
+  try {
+    const status = await navigator.permissions.query({ name: "microphone" });
+    stopWatchingMicPermission();
+    micPermissionStatus = status;
+    status.onchange = () => {
+      if (status.state === "granted") void recoverMicAfterPermissionGrant();
+    };
+  } catch {
+    
+  }
+}
+
+async function recoverMicAfterPermissionGrant() {
+  if (localAudioTrack || !currentChannelId) return;
+
+  try {
+    localAudioTrack = await acquireMicTrack();
+    micGateOpen = true;
+    applyMicTrackEnabled();
+    stopLocalSpeakingDetector = attachLocalMicControl(new MediaStream([localAudioTrack]));
+    stopWatchingMicPermission();
+
+    const track = localAudioTrack;
+    peers.forEach((pc) => pc.addTrack(track));
+
+    broadcastMediaState();
+  } catch (e) {
+    console.warn("마이크 권한이 허용됐지만 재획득에 실패했습니다", e);
+  }
 }
 
 export function setMicGainLevel(percent: number): void {
@@ -85,7 +124,7 @@ function attachLocalMicControl(stream: MediaStream): () => void {
   if (stream.getAudioTracks().length === 0) return () => {};
 
   const audioContext = new AudioContext();
-  void audioContext.resume(); // acquireMicTrack과 동일한 이유로 suspended 상태 방지
+  void audioContext.resume(); 
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 512;
@@ -138,11 +177,11 @@ function attachSpeakingDetector(stream: MediaStream, onChange: (speaking: boolea
   if (stream.getAudioTracks().length === 0) return () => {};
 
   const audioContext = new AudioContext();
-  void audioContext.resume(); // acquireMicTrack과 동일한 이유로 suspended 상태 방지
+  void audioContext.resume();
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 512;
-  source.connect(analyser); // destination에는 연결하지 않음 — 재생이 아니라 분석 전용
+  source.connect(analyser); 
 
   const data = new Uint8Array(analyser.frequencyBinCount);
   let speaking = false;
@@ -406,7 +445,7 @@ export async function joinVoiceChannel(params: {
 }): Promise<void> {
   const { status, channelId: activeChannelId } = useVoiceStore.getState();
 
-  if (status !== "idle" && activeChannelId === params.channelId) return; // already in this channel
+  if (status !== "idle" && activeChannelId === params.channelId) return;
   if (status !== "idle") leaveVoiceChannel();
 
   useVoiceStore.getState().setStatus("connecting");
@@ -415,10 +454,17 @@ export async function joinVoiceChannel(params: {
   currentChannelId = params.channelId;
 
   try {
-    localAudioTrack = await acquireMicTrack();
-    micGateOpen = true;
-    applyMicTrackEnabled();
-    stopLocalSpeakingDetector = attachLocalMicControl(new MediaStream([localAudioTrack]));
+    try {
+      localAudioTrack = await acquireMicTrack();
+      micGateOpen = true;
+      applyMicTrackEnabled();
+      stopLocalSpeakingDetector = attachLocalMicControl(new MediaStream([localAudioTrack]));
+    } catch (micError) {
+      console.warn("마이크를 사용할 수 없어 음소거 상태로 입장합니다", micError);
+      localAudioTrack = null;
+      useVoiceStore.getState().setLocalMic(true);
+      void watchMicPermissionForRecovery();
+    }
 
     await connectVoiceSocket(params.accessToken);
     unsubscribeSignal = onVoiceSignal(handleSignal);
@@ -442,6 +488,8 @@ export function leaveVoiceChannel(): void {
   if (currentChannelId && myUserId) {
     sendVoiceSignal({ type: "leave", channelId: currentChannelId, userId: myUserId });
   }
+
+  stopWatchingMicPermission();
 
   peers.forEach((_pc, peerId) => closePeer(peerId));
   peers.clear();
