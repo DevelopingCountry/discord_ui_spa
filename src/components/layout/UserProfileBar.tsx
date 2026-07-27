@@ -3,6 +3,7 @@ import { UpdateProfileModal } from "@/components/profile/modal/update-profile-mo
 import { VoicePanel } from "@/components/voice/voice-panel";
 import { ChevronUp, Headphones, Mic, MicOff, Settings, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/components/auth/AuthContext";
 import { UserSettingsModal } from "@/components/settings/user-settings-modal";
 import { useVoiceStore } from "@/components/voice/use-voice-store";
 import { setDeafened, setMicMuted } from "@/components/voice/voice-connection";
@@ -36,6 +37,15 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [micPopoverOpen, speakerPopoverOpen]);
 
+  useEffect(() => {
+    if (!showMenu) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setShowMenu(false);
+    };
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [showMenu]);
+
   const openFullSettings = () => {
     setMicPopoverOpen(false);
     setSpeakerPopoverOpen(false);
@@ -45,8 +55,12 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
   return (
     <div>
       <VoicePanel />
-      <div className="flex items-center justify-between gap-1 p-2 bg-discordSidebar rounded">
-        <div className="flex items-center min-w-0">
+      <div ref={menuRef} className="flex items-center justify-between gap-1 p-2 bg-discordSidebar rounded">
+        <button
+          type="button"
+          onClick={() => setShowMenu((v) => !v)}
+          className="flex items-center min-w-0 text-left hover:bg-[#35373c] rounded p-1 -m-1 transition-colors"
+        >
           <div className="relative shrink-0">
             <img
               src={profile?.imageUrl || "/assets/discord_blue.png"}
@@ -63,7 +77,7 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
             <p className="text-sm font-semibold text-white truncate">{profile?.nickname ?? "..."}</p>
             <p className="text-xs text-gray-400 truncate">{statusMessage}</p>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center shrink-0">
           <div ref={micClusterRef} className="relative flex items-center">
@@ -160,11 +174,7 @@ const UserProfileBar = ({ stateIcon, statusMessage }: { stateIcon: string; statu
         onClose={() => setIsProfileModalOpen(false)}
       />
 
-        </div>
-      </div>
-
       <UserSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-
     </div>
   );
 };
