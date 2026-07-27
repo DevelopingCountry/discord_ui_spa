@@ -2,6 +2,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { API_URL } from "@/lib/config";
 
 export default function KakaoRedirectPage() {
   const [searchParams] = useSearchParams();
@@ -13,7 +14,7 @@ export default function KakaoRedirectPage() {
     const code = searchParams.get("code");
     if (!code || handled) return;
     setHandled(true);
-    fetch(`http://localhost:8080/auth/login/kakao?code=${code}`)
+    fetch(`${API_URL}/auth/login/kakao?code=${code}`)
       .then((res) => res.json())
       .then((data) => {
         const { accessToken, userId } = data.response;

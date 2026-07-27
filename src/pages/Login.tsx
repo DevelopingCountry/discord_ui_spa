@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthContext";
 import { API_URL } from "@/lib/config";
 
-const KAKAO_CLIENT_ID = "d0e33acc669d3d7994242e6879cefb32";
-const REDIRECT_URI = "http://localhost:3000/auth/kakao";
+const KAKAO_CLIENT_ID = import.meta.env.VITE_KAKAO_CLIENT_ID ?? "d0e33acc669d3d7994242e6879cefb32";
+const REDIRECT_URI = import.meta.env.VITE_KAKAO_REDIRECT_URI ?? "http://localhost:3000/auth/kakao";
 
 const DEV_TEST_USERS = [
   { email: "dev1@test.local", nickname: "테스트유저1" },
