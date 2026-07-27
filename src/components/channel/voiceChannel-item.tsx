@@ -3,8 +3,10 @@ import { useState } from "react";
 import { ChannelContextMenu } from "@/components/channel/channel-context-menu";
 import { clsx } from "clsx";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/components/auth/AuthContext";
+import { useProfileQuery } from "@/components/profile/use-profile-query";
+import { joinVoiceChannel } from "@/components/voice/voice-connection";
 
-// TODO: voice 도메인(useVoiceStore/useWebRTC)은 아직 포팅 전 (다음 단계) — 지금은 클릭 시 채널 화면 이동만 하고 실제 음성 연결/참여자 목록은 표시하지 않음.
 export default function VoiceChannelItem({
   name,
   channelId,
@@ -18,6 +20,8 @@ export default function VoiceChannelItem({
 }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const navigate = useNavigate();
+  const { userId, accessToken } = useAuth();
+  const { data: profile } = useProfileQuery();
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -27,6 +31,16 @@ export default function VoiceChannelItem({
 
   const handleClick = () => {
     navigate(`/channels/${serverId}/${channelId}`);
+    if (userId && accessToken) {
+      void joinVoiceChannel({
+        serverId,
+        channelId,
+        channelName: name,
+        userId,
+        nickname: profile?.nickname ?? userId,
+        accessToken,
+      });
+    }
   };
 
   return (
