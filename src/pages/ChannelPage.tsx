@@ -1,7 +1,7 @@
 import SectionOne from "@/components/layout/sectionOne";
 import SectionFour from "@/components/layout/sectionFour";
 import SectionOneAndFour from "@/components/layout/sectionOneAndFour";
-import { Bell, Hash, Pencil, Search, Users } from "lucide-react";
+import { Bell, Hash, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChannelsQuery } from "@/components/channel/use-channels-query";
 import MessageInput from "@/components/messeage-input";
@@ -12,72 +12,14 @@ import { useParams } from "react-router-dom";
 import { VoiceChannelPage } from "@/components/voice/voice-channel-page";
 import { API_URL } from "@/lib/config";
 import { publish } from "@/lib/socket";
-import { useSocketSubscribe } from "@/components/hooks/useSocketSubscribe";
+import { channelMessagesQueryKey, useChannelMessagesQuery } from "@/components/channel/use-channel-messages-query";
+import { useUpdateChannelMessage, useDeleteChannelMessage } from "@/components/channel/use-channel-message-mutations";
+import { useMessageSocketSync } from "@/components/hooks/useMessageSocketSync";
+import { groupMessagesByDay } from "@/lib/message-grouping";
 
-type ChannelMessage = {
-  channelId: string;
-  messageId: string;
-  userId: string;
-  nickName: string;
-  content: string;
-  createdAt: string;
-  imageUrl?: string;
-};
-type MessageGroup = {
-  userId: string;
-  nickName: string;
-  avatarUrl?: string;
-  timeLabel: string;
-  messages: { messageId: string; content: string; createdAt: string }[];
-  lastTime: Date;
-};
-type GroupedDay = { dateLabel: string; messageGroups: MessageGroup[] };
 type Member = { userId: string; nickname: string; imageUrl: string; online: boolean };
 
-function formatTime(d: string) {
-  return new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "numeric", hour12: true }).format(new Date(d));
-}
-function formatDate(d: string) {
-  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(d));
-}
-function groupMessages(messages: ChannelMessage[]): GroupedDay[] {
-  const grouped: GroupedDay[] = [];
-  let currentDateKey = "";
-  let currentDay: GroupedDay | null = null;
-  let currentGroup: MessageGroup | null = null;
-
-  messages.forEach((msg) => {
-    const date = new Date(msg.createdAt);
-    const dateKey = date.toDateString();
-    if (dateKey !== currentDateKey) {
-      currentDateKey = dateKey;
-      currentDay = { dateLabel: formatDate(msg.createdAt), messageGroups: [] };
-      grouped.push(currentDay);
-      currentGroup = null;
-    }
-    const lastTime = currentGroup?.messages.at(-1) ? new Date(currentGroup!.messages.at(-1)!.createdAt) : null;
-    const sameGroup =
-      currentGroup &&
-      currentGroup.userId === msg.userId &&
-      lastTime &&
-      date.getTime() - lastTime.getTime() <= 5 * 60 * 1000;
-
-    if (sameGroup) {
-      currentGroup!.messages.push({ messageId: msg.messageId, content: msg.content, createdAt: msg.createdAt });
-    } else {
-      currentGroup = {
-        userId: msg.userId,
-        nickName: msg.nickName,
-        avatarUrl: msg.imageUrl,
-        timeLabel: formatTime(msg.createdAt),
-        lastTime: date,
-        messages: [{ messageId: msg.messageId, content: msg.content, createdAt: msg.createdAt }],
-      };
-      currentDay!.messageGroups.push(currentGroup);
-    }
-  });
-  return grouped;
-}
+const GROUPING_WINDOW_MS = 5 * 60 * 1000;
 
 export default function ChannelPage() {
   const { serverId, channelId } = useParams<{ serverId: string; channelId: string }>();
@@ -86,11 +28,12 @@ export default function ChannelPage() {
   const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
   const { userId } = useAuth();
 
-  const [messages, setMessages] = useState<ChannelMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: messages = [], isLoading } = useChannelMessagesQuery(channelId);
+  const updateMessageMutation = useUpdateChannelMessage(channelId ?? "");
+  const deleteMessageMutation = useDeleteChannelMessage(channelId ?? "");
   const [editingMessage, setEditingMessage] = useState<{ messageId: string; content: string } | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [showMembers, setShowMembers] = useState(true);
+  const [, setMembers] = useState<Member[]>([]);
+  const [, setShowMembers] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -101,30 +44,7 @@ export default function ChannelPage() {
       .catch(() => {});
   }, [token, serverId]);
 
-  useEffect(() => {
-    if (!token || !channelId) return;
-    setIsLoading(true);
-    axios
-      .get(`${API_URL}/channel/${channelId}/messages`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => {
-        setMessages(res.data.response || []);
-        setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
-  }, [token, channelId]);
-
-  useSocketSubscribe<{ type: "SEND" | "UPDATE" | "DELETE"; message: ChannelMessage }>(
-    channelId ? `/topic/channel/${channelId}` : null,
-    (data) => {
-      if (data.type === "SEND") setMessages((prev) => [...prev, data.message]);
-      else if (data.type === "UPDATE")
-        setMessages((prev) =>
-          prev.map((m) => (m.messageId === data.message.messageId ? { ...m, content: data.message.content } : m)),
-        );
-      else if (data.type === "DELETE")
-        setMessages((prev) => prev.filter((m) => m.messageId !== data.message.messageId));
-    },
-  );
+  useMessageSocketSync(channelId ? `/topic/channel/${channelId}` : null, channelMessagesQueryKey(channelId ?? ""));
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -134,36 +54,23 @@ export default function ChannelPage() {
     if (!channelId || !content.trim()) return;
     publish(`/app/channel/${channelId}`, { content });
   };
-  const updateMessage = async (messageId: string, content: string) => {
+  const updateMessage = (messageId: string, content: string) => {
     if (!content.trim()) return;
-    try {
-      await axios.patch(
-        `${API_URL}/channel/${channelId}/message/${messageId}`,
-        { content },
-        {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        },
-      );
-      setMessages((prev) => prev.map((m) => (m.messageId === messageId ? { ...m, content } : m)));
-      setEditingMessage(null);
-    } catch (err) {
-      console.error("❌ 메시지 수정 실패:", err);
-    }
+    updateMessageMutation.mutate(
+      { messageId, content },
+      {
+        onSuccess: () => setEditingMessage(null),
+        onError: (err) => console.error("❌ 메시지 수정 실패:", err),
+      },
+    );
   };
-  const deleteMessage = async (messageId: string) => {
-    try {
-      await axios.delete(`${API_URL}/channel/${channelId}/message/${messageId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMessages((prev) => prev.filter((m) => m.messageId !== messageId));
-    } catch (err) {
-      console.error("❌ 메시지 삭제 실패:", err);
-    }
+  const deleteMessage = (messageId: string) => {
+    deleteMessageMutation.mutate(messageId, {
+      onError: (err) => console.error("❌ 메시지 삭제 실패:", err),
+    });
   };
 
-  const grouped = groupMessages(messages);
-  const onlineMembers = members.filter((m) => m.online);
-  const offlineMembers = members.filter((m) => !m.online);
+  const grouped = groupMessagesByDay(messages, GROUPING_WINDOW_MS);
 
   if (currentChannel?.type === "VOICE") {
     return (
@@ -210,10 +117,7 @@ export default function ChannelPage() {
                 #{currentChannel?.name || "채널"}에 오신 걸 환영합니다!
               </h1>
               <p className="text-[#b5bac1] text-base mb-5">#{currentChannel?.name || "채널"} 채널의 시작이에요.</p>
-              <button className="flex items-center gap-2 px-3 py-1.5 bg-[#4e5058] hover:bg-[#6d6f78] text-white text-sm rounded transition-colors">
-                <Pencil className="w-4 h-4" />
-                채널 편집
-              </button>
+
             </div>
 
             {/* 날짜 구분선 + 메시지 */}
@@ -301,58 +205,7 @@ export default function ChannelPage() {
             )}
           </div>
 
-          {/* 오른쪽 멤버 패널 */}
-          {showMembers && (
-            <div className="w-60 flex-shrink-0 bg-discord1and4 overflow-y-auto py-4 px-2 border-l border-[#1e1f22]">
-              {onlineMembers.length > 0 && (
-                <>
-                  <div className="text-xs font-semibold text-[#96989d] px-2 mb-2">온라인 — {onlineMembers.length}</div>
-                  {onlineMembers.map((m) => (
-                    <div
-                      key={m.userId}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35373c] cursor-pointer"
-                    >
-                      <div className="relative flex-shrink-0">
-                        <img
-                          src={m.imageUrl || "/assets/discord_blue.png"}
-                          alt={m.nickname}
-                          width={32}
-                          height={32}
-                          className="rounded-full"
-                        />
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#2b2d31]" />
-                      </div>
-                      <span className="text-[#dcddde] text-sm truncate">{m.nickname}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {offlineMembers.length > 0 && (
-                <>
-                  <div className="text-xs font-semibold text-[#96989d] px-2 mt-4 mb-2">
-                    오프라인 — {offlineMembers.length}
-                  </div>
-                  {offlineMembers.map((m) => (
-                    <div
-                      key={m.userId}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35373c] cursor-pointer"
-                    >
-                      <div className="relative flex-shrink-0 opacity-50">
-                        <img
-                          src={m.imageUrl || "/assets/discord_blue.png"}
-                          alt={m.nickname}
-                          width={32}
-                          height={32}
-                          className="rounded-full grayscale"
-                        />
-                      </div>
-                      <span className="text-[#96989d] text-sm truncate">{m.nickname}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
+
         </div>
 
         {/* 메시지 입력창 */}

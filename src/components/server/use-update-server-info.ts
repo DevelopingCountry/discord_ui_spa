@@ -13,7 +13,10 @@ export const useUpdateServerInfo = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("서버 업데이트 실패");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "서버 업데이트 실패");
+      }
       return res.json();
     },
     onSuccess: () => {

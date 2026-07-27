@@ -10,6 +10,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { friendsQueryKey } from "@/components/friend/use-friends-query";
 import { serverInvitesQueryKey } from "@/components/server/use-server-invites-query";
+import { serversQueryKey } from "@/components/server/use-servers-query";
+import { dmsQueryKey } from "@/components/dm/use-dms-query";
+import type { server } from "@/components/type/response";
 
 type NotificationPayload = {
   fromNickname: string;
@@ -21,6 +24,7 @@ type NotificationPayload = {
   serverName?: string;
   serverUrl?: string;
   serverId?: string;
+  imageUrl?: string;
 };
 
 export default function NotificationSubscribe() {
@@ -48,8 +52,6 @@ export default function NotificationSubscribe() {
     console.log("📩 알림 수신:", type, payload);
     switch (type) {
       case "INVITE":
-      case "DM":
-      case "FRIEND_REQUEST":
         addNotification({
           id: crypto.randomUUID(),
           type: type as NotificationType,
@@ -57,6 +59,14 @@ export default function NotificationSubscribe() {
           isRead: false,
           createdAt: new Date().toISOString(),
         });
+        queryClient.invalidateQueries({ queryKey: friendsQueryKey });
+        break;
+      case "DM":
+        // 대화방 옆 안읽음 배지로 대체됨 — 알림함에는 넣지 않고 dmsQueryKey만 갱신
+        queryClient.invalidateQueries({ queryKey: dmsQueryKey });
+        break;
+      case "FRIEND_REQUEST":
+        // 대기중 탭 배지로 대체됨 — 알림함에는 넣지 않고 friendsQueryKey만 갱신
         queryClient.invalidateQueries({ queryKey: friendsQueryKey });
         break;
       case "FRIEND_ONLINE":
@@ -77,6 +87,11 @@ export default function NotificationSubscribe() {
         if (payload.serverId) {
           queryClient.invalidateQueries({ queryKey: serverInvitesQueryKey(payload.serverId) });
         }
+        break;
+      case "SERVER_UPDATED":
+        queryClient.setQueryData<server[]>(serversQueryKey, (prev = []) =>
+          prev.map((s) => (s.id === payload.serverId ? { ...s, name: payload.serverName ?? s.name, imageUrl: payload.imageUrl ?? s.imageUrl } : s)),
+        );
         break;
       default:
     }

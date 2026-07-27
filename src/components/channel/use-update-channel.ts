@@ -36,9 +36,5 @@ export const useUpdateChannel = () => {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: channelsQueryKey(variables.serverId) });
     },
-    onError: (error) => {
-      console.error("채널 업데이트 실패:", error);
-      alert("채널 업데이트에 실패했습니다.");
-    },
   });
 };

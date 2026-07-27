@@ -1,4 +1,10 @@
-export type DmList = { dmId: string; targetId: string; targetImageUrl: string; targetNickname: string };
+export type DmList = {
+  dmId: string;
+  targetId: string;
+  targetImageUrl: string;
+  targetNickname: string;
+  unreadCount: number;
+};
 export type friendsDataType = {
   friendId: string;
   name: string;

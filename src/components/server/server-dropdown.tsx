@@ -1,5 +1,5 @@
 import React from "react";
-import { Bell, Cog, Gift, UserPlus, X } from "lucide-react";
+import { Bell, Cog, UserPlus, X } from "lucide-react";
 import { useRef, useEffect } from "react";
 
 export type ServerModalType = "invite" | "update" | "alarm" | "leave";
@@ -39,9 +39,6 @@ export default function ServerDropdown({ isOpen, onClose, serverName, onSelectMo
     <div className="absolute top-12 left-0 w-60 bg-[#1e1f22] rounded-md shadow-lg z-50 text-white" ref={dropdownRef}>
       <div className="p-2 text-base font-semibold border-b border-[#35373c]">{serverName}</div>
 
-      <div className="py-1">
-        <DropdownItem icon={<Gift className="w-4 h-4" />} label="서버 부스트" />
-      </div>
 
       <div className="border-t border-[#35373c] py-1">
         <DropdownItem icon={<UserPlus className="w-4 h-4" />} label="초대하기" onClick={() => selectModal("invite")} />

@@ -6,13 +6,6 @@ import { useState } from "react";
 import { CreateServerModal } from "@/components/server/modal/server-create-modal";
 import { useServersQuery } from "@/components/server/use-servers-query";
 
-const COLORS = ["#5865f2", "#57f287", "#fee75c", "#eb459e", "#ed4245", "#3ba55c", "#faa61a", "#00aff4"];
-
-function getColor(id: string) {
-  const n = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  return COLORS[n % COLORS.length];
-}
-
 export default function ServerSidebar() {
   const { data: servers = [] } = useServersQuery();
   const navigate = useNavigate();
@@ -63,10 +56,7 @@ export default function ServerSidebar() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span
-                        className="w-full h-full flex items-center justify-center text-white font-bold text-lg"
-                        style={{ backgroundColor: getColor(server.id) }}
-                      >
+                      <span className="w-full h-full flex items-center justify-center bg-[#313338] text-white font-bold text-lg">
                         {server.name?.charAt(0) ?? "?"}
                       </span>
                     )}

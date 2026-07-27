@@ -67,6 +67,9 @@ export default function NotificationInbox() {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       queryClient.invalidateQueries({ queryKey: serversQueryKey });
+      await axios.delete(`${API_URL}/notifications/invite/${invite.inviteId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
     } catch (e) {
       console.error("초대 수락 실패:", e);
     } finally {
