@@ -3,7 +3,15 @@ import { useVoiceStore } from "@/components/voice/use-voice-store";
 import { useVoiceSettingsStore } from "@/components/voice/use-voice-settings-store";
 import type { VoiceSignal } from "@/components/voice/voice-types";
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+const turnUrl = import.meta.env.VITE_TURN_URL;
+const turnUsername = import.meta.env.VITE_TURN_USERNAME;
+const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL;
+
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  ...(turnUrl ? [{ urls: turnUrl, username: turnUsername, credential: turnCredential }] : []),
+];
+
 const SPEAKING_THRESHOLD = 12; // getByteFrequencyData 평균값 기준(0~255), 경험적으로 조정한 값
 const SPEAKING_HANGOVER_MS = 300; // 말 사이 짧은 침묵에 테두리가 깜빡이지 않도록 유지하는 시간
 

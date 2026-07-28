@@ -17,7 +17,11 @@ export default function KakaoRedirectPage() {
     fetch(`${API_URL}/auth/login/kakao?code=${code}`)
       .then((res) => res.json())
       .then((data) => {
-        const { accessToken, userId } = data.response;
+        const accessToken: string | undefined = data?.response?.accessToken;
+        const userId: string | undefined = data?.response?.userId;
+        if (!data?.success || !accessToken || !userId) {
+          throw new Error(data?.message ?? "로그인 응답이 올바르지 않습니다");
+        }
         login(accessToken);
         settingUserId(userId);
         localStorage.setItem("accessToken", accessToken);
@@ -26,7 +30,7 @@ export default function KakaoRedirectPage() {
       .catch((err) => {
         console.error("카카오 로그인 실패:", err);
         navigate("/login");
-      });
+      });;
   }, [searchParams, navigate, login, handled, settingUserId]);
 
   return (
